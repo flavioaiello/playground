@@ -32,30 +32,18 @@ if ! az account show &> /dev/null; then
   exit 1
 fi
 
-# Create Bicep directory structure
-echo "Setting up Bicep files..."
-mkdir -p $BICEP_DIR
-cat <<BICEP > $BICEP_DIR/main.bicep
-resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
-  name: '$RESOURCE_GROUP'
-  location: '$LOCATION'
-}
+# Export ARM template for existing resources and convert to Bicep
+echo "Exporting ARM template for existing resources in the resource group..."
+az group export --name $RESOURCE_GROUP --resource-group $RESOURCE_GROUP --query properties.template > exported-template.json
 
-resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
-  name: 'myVNet'
-  location: rg.location
-  properties: {
-    addressSpace: {
-      addressPrefixes: ['10.0.0.0/16']
-    }
-  }
-}
-BICEP
+echo "Converting ARM template to Bicep..."
+az bicep decompile --file exported-template.json --out-file $BICEP_DIR/main.bicep
 
 # Initialize Git repository and push to GitHub
 echo "Committing Bicep files..."
 git add .
 git commit -m "Initial commit with Bicep files"
+git pull origin main --rebase
 git push origin main
 
 # Create Azure Service Principal for GitHub Actions
@@ -72,15 +60,8 @@ if [[ -z "$PUBLIC_KEY" || -z "$KEY_ID" ]]; then
   exit 1
 fi
 
-# Encrypt the secret using the public key
-AZURE_CREDENTIALS=$(jq -n \
-  --arg clientId "$(echo $AZURE_SP | jq -r '.clientId')" \
-  --arg clientSecret "$(echo $AZURE_SP | jq -r '.clientSecret')" \
-  --arg subscriptionId "$AZURE_SUBSCRIPTION_ID" \
-  --arg tenantId "$AZURE_TENANT_ID" \
-  '{clientId: $clientId, clientSecret: $clientSecret, subscriptionId: $subscriptionId, tenantId: $tenantId}')
-
-ENCRYPTED_VALUE=$(echo -n $AZURE_CREDENTIALS | openssl rsautl -encrypt -pubin -inkey <(echo $PUBLIC_KEY | base64 -d) | base64)
+# Encrypt the secret using the public key with pkeyutl
+ENCRYPTED_VALUE=$(echo -n $AZURE_CREDENTIALS | openssl pkeyutl -encrypt -pubin -inkey <(echo $PUBLIC_KEY | base64 -d) | base64)
 
 # Upload the secret to GitHub
 curl -u $GITHUB_USERNAME:$GITHUB_PAT -X PUT https://api.github.com/repos/$GITHUB_USERNAME/$REPO_NAME/actions/secrets/AZURE_CREDENTIALS \
@@ -103,22 +84,20 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3  # Updated to the latest version
 
     - name: Set up Azure CLI
-      uses: azure/CLI@v1
-      with:
-        azcliversion: 2.29.0
+      uses: azure/CLI@v2  # Updated to the latest version
 
     - name: Login to Azure
-      uses: azure/login@v1
+      uses: azure/login@v2  # Updated to the latest version
       with:
-        creds: \${{ secrets.AZURE_CREDENTIALS }}
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
 
     - name: Deploy Bicep file
       run: |
-        az deployment group create \\
-          --resource-group $RESOURCE_GROUP \\
+        az deployment group create \
+          --resource-group $RESOURCE_GROUP \
           --template-file ./infra/main.bicep
 GITHUB_ACTIONS
 
@@ -129,4 +108,3 @@ git commit -m "Add GitHub Actions workflow for Bicep deployment"
 git push origin main
 
 echo "Setup complete. Your infrastructure will deploy automatically on pushes to the main branch."
-
