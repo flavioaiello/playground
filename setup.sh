@@ -33,33 +33,6 @@ fi
 # echo "Service Principal credentials (add these to GitHub Secrets as AZURE_CREDENTIALS):"
 # echo "$SERVICE_PRINCIPAL_JSON"
 
-# Create the Resource Group if it doesn't exist
-echo "Checking if resource group '$RESOURCE_GROUP_NAME' exists..."
-if ! az group show --name "$RESOURCE_GROUP_NAME" > /dev/null 2>&1; then
-  echo "Resource group '$RESOURCE_GROUP_NAME' does not exist. Creating it now..."
-  az group create --name "$RESOURCE_GROUP_NAME" --location "$LOCATION"
-else
-  echo "Resource group '$RESOURCE_GROUP_NAME' already exists."
-fi
-
-# Create the Virtual Network if it doesn't exist
-echo "Checking if VNet '$VNET_NAME' exists..."
-if ! az network vnet show --name "$VNET_NAME" --resource-group "$RESOURCE_GROUP_NAME" > /dev/null 2>&1; then
-  echo "VNet '$VNET_NAME' does not exist. Creating it now..."
-  az network vnet create --name "$VNET_NAME" --resource-group "$RESOURCE_GROUP_NAME" --location "$LOCATION" --address-prefix "10.0.0.0/16"
-else
-  echo "VNet '$VNET_NAME' already exists."
-fi
-
-# Create the Subnet if it doesn't exist
-echo "Checking if subnet '$SUBNET_NAME' exists in VNet '$VNET_NAME'..."
-if ! az network vnet subnet show --name "$SUBNET_NAME" --resource-group "$RESOURCE_GROUP_NAME" --vnet-name "$VNET_NAME" > /dev/null 2>&1; then
-  echo "Subnet '$SUBNET_NAME' does not exist. Creating it now..."
-  az network vnet subnet create --name "$SUBNET_NAME" --resource-group "$RESOURCE_GROUP_NAME" --vnet-name "$VNET_NAME" --address-prefix "$SUBNET_PREFIX"
-else
-  echo "Subnet '$SUBNET_NAME' already exists in VNet '$VNET_NAME'."
-fi
-
 # Create Bicep directory if it doesn't exist
 BICEP_DIR="./bicep"
 if [ ! -d "$BICEP_DIR" ]; then
@@ -78,25 +51,55 @@ echo # Move to a new line after password input
 # Create Bicep file for VM deployment
 BICEP_FILE="$BICEP_DIR/vm-deployment.bicep"
 if [ ! -f "$BICEP_FILE" ]; then
-  echo "Creating Bicep file for VM deployment at $BICEP_FILE"
+  echo "Creating Bicep file for VM and network resources deployment at $BICEP_FILE"
   cat <<EOL > "$BICEP_FILE"
+param location string = '$LOCATION'
+param vnetName string = '$VNET_NAME'
+param subnetName string = '$SUBNET_NAME'
+param subnetPrefix string = '$SUBNET_PREFIX'
 param vmName string = '$VM_NAME'
 param adminUsername string = '$ADMIN_USERNAME'
 @secure()
 param adminPassword string = '$ADMIN_PASSWORD'
-param subnetId string = '/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP_NAME/providers/Microsoft.Network/virtualNetworks/$VNET_NAME/subnets/$SUBNET_NAME'
-param location string = resourceGroup().location
+
+resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
+  name: vnetName
+  location: location
+  properties: {
+    addressSpace: {
+      addressPrefixes: [
+        '10.0.0.0/16' // Adjust as needed
+      ]
+    }
+    subnets: [
+      {
+        name: subnetName
+        properties: {
+          addressPrefix: subnetPrefix
+        }
+      }
+    ]
+  }
+}
+
+resource subnet 'Microsoft.Network/virtualNetworks/subnets@2021-05-01' = {
+  name: '\${vnet.name}/\${subnetName}'
+  properties: {}
+  dependsOn: [
+    vnet
+  ]
+}
 
 resource nic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
-  name: '${vmName}-nic'
+  name: '\${vmName}-nic'
   location: location
   properties: {
     ipConfigurations: [
       {
-        name: '${vmName}-ipconfig'
+        name: '\${vmName}-ipconfig'
         properties: {
           subnet: {
-            id: subnetId // Reference the subnetId parameter
+            id: subnet.id // Reference the subnet's ID dynamically
           }
           privateIPAllocationMethod: 'Dynamic'
         }
@@ -191,7 +194,7 @@ echo "GitHub Actions workflow for GitOps has been created at .github/workflows/g
 
 # Add and commit changes
 git add .
-git commit -m "Setup GitOps configuration with Bicep files"
+git commit -m "Setup GitOps configuration with Bicep files including network and VM resources"
 
 # Push changes to GitHub (ensure no sensitive files are pushed)
 git push origin main

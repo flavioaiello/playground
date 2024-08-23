@@ -1,9 +1,39 @@
-param vmName string
-param adminUsername string
+param location string = 'eastus'
+param vnetName string = 'myVNet'
+param subnetName string = 'mySubnet'
+param subnetPrefix string = '10.0.0.0/24'
+param vmName string = 'web'
+param adminUsername string = 'admin'
 @secure()
-param adminPassword string
-param location string = resourceGroup().location
-param subnetId string // Add this parameter to reference the subnet
+param adminPassword string = 'M4$erat1Mc12'
+
+resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
+  name: vnetName
+  location: location
+  properties: {
+    addressSpace: {
+      addressPrefixes: [
+        '10.0.0.0/16' // Adjust as needed
+      ]
+    }
+    subnets: [
+      {
+        name: subnetName
+        properties: {
+          addressPrefix: subnetPrefix
+        }
+      }
+    ]
+  }
+}
+
+resource subnet 'Microsoft.Network/virtualNetworks/subnets@2021-05-01' = {
+  name: '${vnet.name}/${subnetName}'
+  properties: {}
+  dependsOn: [
+    vnet
+  ]
+}
 
 resource nic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
   name: '${vmName}-nic'
@@ -14,7 +44,7 @@ resource nic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
         name: '${vmName}-ipconfig'
         properties: {
           subnet: {
-            id: subnetId // Reference the subnetId parameter
+            id: subnet.id // Reference the subnet's ID dynamically
           }
           privateIPAllocationMethod: 'Dynamic'
         }
