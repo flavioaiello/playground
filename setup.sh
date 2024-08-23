@@ -195,4 +195,5 @@ git commit -m "Setup GitOps configuration with Bicep files including network and
 # Push changes to GitHub (ensure no sensitive files are pushed)
 git push origin main
 
-echo "Setup complete. Please add the Service Principal credentials to GitHub Secrets as AZURE_CREDENTIALS."
+echo "Setup complete."
+
