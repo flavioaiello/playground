@@ -21,10 +21,10 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Deploy Bicep file
+    - name: Deploy ARM template
       run: |
         for dir in infra/*; do
           az deployment group create \
             --resource-group $(basename $dir) \
-            --template-file $dir/main.bicep
+            --template-file $dir/arm-template.json
         done
