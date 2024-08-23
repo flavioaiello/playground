@@ -105,7 +105,7 @@ resource vm 'Microsoft.Compute/virtualMachines@2021-07-01' = {
   location: location
   properties: {
     hardwareProfile: {
-      vmSize: 'Standard_DS2_v3' // Adjusted VM size to available SKU
+      vmSize: 'Standard_D2as_v4' // Adjusted VM size to available SKU
     }
     storageProfile: {
       imageReference: {
