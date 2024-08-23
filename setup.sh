@@ -16,6 +16,9 @@ AZURE_TENANT_ID=$(az account show --query tenantId --output tsv)
 AZURE_SERVICE_PRINCIPAL_NAME="my-github-actions-sp"
 RESOURCE_GROUP_NAME="myResourceGroup" # Specify your desired resource group name
 LOCATION="eastus" # Specify your desired Azure region
+VNET_NAME="myVNet" # Specify your desired VNet name
+SUBNET_NAME="mySubnet" # Specify your desired subnet name
+SUBNET_PREFIX="10.0.0.0/24" # Specify your desired subnet CIDR
 
 # Create Service Principal
 # echo "Creating Azure Service Principal..."
@@ -39,6 +42,24 @@ else
   echo "Resource group '$RESOURCE_GROUP_NAME' already exists."
 fi
 
+# Create the Virtual Network if it doesn't exist
+echo "Checking if VNet '$VNET_NAME' exists..."
+if ! az network vnet show --name "$VNET_NAME" --resource-group "$RESOURCE_GROUP_NAME" > /dev/null 2>&1; then
+  echo "VNet '$VNET_NAME' does not exist. Creating it now..."
+  az network vnet create --name "$VNET_NAME" --resource-group "$RESOURCE_GROUP_NAME" --location "$LOCATION" --address-prefix "10.0.0.0/16"
+else
+  echo "VNet '$VNET_NAME' already exists."
+fi
+
+# Create the Subnet if it doesn't exist
+echo "Checking if subnet '$SUBNET_NAME' exists in VNet '$VNET_NAME'..."
+if ! az network vnet subnet show --name "$SUBNET_NAME" --resource-group "$RESOURCE_GROUP_NAME" --vnet-name "$VNET_NAME" > /dev/null 2>&1; then
+  echo "Subnet '$SUBNET_NAME' does not exist. Creating it now..."
+  az network vnet subnet create --name "$SUBNET_NAME" --resource-group "$RESOURCE_GROUP_NAME" --vnet-name "$VNET_NAME" --address-prefix "$SUBNET_PREFIX"
+else
+  echo "Subnet '$SUBNET_NAME' already exists in VNet '$VNET_NAME'."
+fi
+
 # Create Bicep directory if it doesn't exist
 BICEP_DIR="./bicep"
 if [ ! -d "$BICEP_DIR" ]; then
@@ -48,16 +69,41 @@ else
   echo "Bicep directory already exists at $BICEP_DIR"
 fi
 
+# Prompt for VM deployment parameters
+read -p "Enter the VM name: " VM_NAME
+read -p "Enter the admin username: " ADMIN_USERNAME
+read -s -p "Enter the admin password: " ADMIN_PASSWORD
+echo # Move to a new line after password input
+
 # Create Bicep file for VM deployment
 BICEP_FILE="$BICEP_DIR/vm-deployment.bicep"
 if [ ! -f "$BICEP_FILE" ]; then
   echo "Creating Bicep file for VM deployment at $BICEP_FILE"
   cat <<EOL > "$BICEP_FILE"
-param vmName string
-param adminUsername string
+param vmName string = '$VM_NAME'
+param adminUsername string = '$ADMIN_USERNAME'
 @secure()
-param adminPassword string
+param adminPassword string = '$ADMIN_PASSWORD'
+param subnetId string = '/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP_NAME/providers/Microsoft.Network/virtualNetworks/$VNET_NAME/subnets/$SUBNET_NAME'
 param location string = resourceGroup().location
+
+resource nic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
+  name: '${vmName}-nic'
+  location: location
+  properties: {
+    ipConfigurations: [
+      {
+        name: '${vmName}-ipconfig'
+        properties: {
+          subnet: {
+            id: subnetId // Reference the subnetId parameter
+          }
+          privateIPAllocationMethod: 'Dynamic'
+        }
+      }
+    ]
+  }
+}
 
 resource vm 'Microsoft.Compute/virtualMachines@2021-07-01' = {
   name: vmName
@@ -88,28 +134,10 @@ resource vm 'Microsoft.Compute/virtualMachines@2021-07-01' = {
     networkProfile: {
       networkInterfaces: [
         {
-          id: nic.id
+          id: nic.id // Reference the NIC's ID
         }
       ]
     }
-  }
-}
-
-resource nic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
-  name: '${vmName}-nic'
-  location: location
-  properties: {
-    ipConfigurations: [
-      {
-        name: '${vmName}-ipconfig'
-        properties: {
-          subnet: {
-            id: subnetId
-          }
-          privateIPAllocationMethod: 'Dynamic'
-        }
-      }
-    ]
   }
 }
 EOL
