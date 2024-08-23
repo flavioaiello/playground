@@ -16,7 +16,7 @@ AZURE_TENANT_ID=$(az account show --query tenantId --output tsv)
 AZURE_SERVICE_PRINCIPAL_NAME="github-actions-sp"
 
 # Check if required tools are installed
-for tool in az jq git curl openssl; do
+for tool in az jq git curl openssl base64; do
   if ! command -v $tool &> /dev/null; then
     echo "$tool could not be found, please install it before running the script."
     exit 1
@@ -81,7 +81,7 @@ fi
 
 # Encrypt the secret using the public key with pkeyutl
 echo -n $AZURE_SP | openssl pkeyutl -encrypt -pubin -inkey <(echo $PUBLIC_KEY | base64 -d) -out encrypted-value.bin
-ENCRYPTED_VALUE=$(base64 -w 0 encrypted-value.bin)
+ENCRYPTED_VALUE=$(base64 < encrypted-value.bin)
 
 # Upload the secret to GitHub
 curl -u $GITHUB_USERNAME:$GITHUB_PAT -X PUT https://api.github.com/repos/$GITHUB_USERNAME/$REPO_NAME/actions/secrets/AZURE_CREDENTIALS \
