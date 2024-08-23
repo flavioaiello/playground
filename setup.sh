@@ -29,34 +29,30 @@ if ! az account show &> /dev/null; then
   exit 1
 fi
 
-# Iterate over all resource groups
+# Iterate over all resource groups and export them as ARM templates
 for RESOURCE_GROUP in $(az group list --query "[].name" -o tsv); do
-  echo "Processing resources in resource group: $RESOURCE_GROUP"
+  echo "Processing resource group: $RESOURCE_GROUP"
 
   BICEP_DIR="infra/$RESOURCE_GROUP"
   mkdir -p $BICEP_DIR
 
-  # List all resources in the resource group and iterate over them
-  for RESOURCE_ID in $(az resource list --resource-group $RESOURCE_GROUP --query "[].id" -o tsv); do
-    echo "Exporting ARM template for resource: $RESOURCE_ID"
+  # Export the entire resource group as an ARM template
+  echo "Exporting ARM template for resource group: $RESOURCE_GROUP"
+  az group export --name $RESOURCE_GROUP --query properties.template > $BICEP_DIR/exported-template.json
 
-    # Export ARM template for each resource
-    az resource show --ids $RESOURCE_ID --query properties > $BICEP_DIR/exported-template.json
+  if [[ $? -ne 0 || ! -s $BICEP_DIR/exported-template.json ]]; then
+    echo "Failed to export ARM template or file is empty for resource group $RESOURCE_GROUP. Skipping..."
+    continue
+  fi
 
-    if [[ $? -ne 0 || ! -s $BICEP_DIR/exported-template.json ]]; then
-      echo "Failed to export ARM template or file is empty for resource $RESOURCE_ID. Skipping..."
-      continue
-    fi
+  # Convert ARM template to Bicep
+  echo "Converting ARM template to Bicep for resource group $RESOURCE_GROUP..."
+  az bicep decompile --file $BICEP_DIR/exported-template.json > $BICEP_DIR/main.bicep
 
-    # Convert ARM template to Bicep
-    echo "Converting ARM template to Bicep for resource $RESOURCE_ID..."
-    az bicep decompile --file $BICEP_DIR/exported-template.json > $BICEP_DIR/main.bicep
-
-    if [[ $? -ne 0 || ! -s $BICEP_DIR/main.bicep ]]; then
-      echo "Failed to convert ARM template to Bicep or file is empty for resource $RESOURCE_ID. Skipping..."
-      continue
-    fi
-  done
+  if [[ $? -ne 0 || ! -s $BICEP_DIR/main.bicep ]]; then
+    echo "Failed to convert ARM template to Bicep or file is empty for resource group $RESOURCE_GROUP. Skipping..."
+    continue
+  fi
 done
 
 # Initialize Git repository and push to GitHub
@@ -81,7 +77,8 @@ if [[ -z "$PUBLIC_KEY" || -z "$KEY_ID" ]]; then
 fi
 
 # Encrypt the secret using the public key with pkeyutl
-ENCRYPTED_VALUE=$(echo -n $AZURE_CREDENTIALS | openssl pkeyutl -encrypt -pubin -inkey <(echo $PUBLIC_KEY | base64 -d) | base64)
+echo -n $AZURE_SP | openssl pkeyutl -encrypt -pubin -inkey <(echo $PUBLIC_KEY | base64 -d) -out encrypted-value.bin
+ENCRYPTED_VALUE=$(base64 -w 0 encrypted-value.bin)
 
 # Upload the secret to GitHub
 curl -u $GITHUB_USERNAME:$GITHUB_PAT -X PUT https://api.github.com/repos/$GITHUB_USERNAME/$REPO_NAME/actions/secrets/AZURE_CREDENTIALS \
