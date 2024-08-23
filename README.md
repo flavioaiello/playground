@@ -1,2 +1,2 @@
 # playground
-My Azure Playground
+My GitOps Azure Playground
