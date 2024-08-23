@@ -24,12 +24,9 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-# Store the Service Principal credentials in GitHub Secrets
-echo "Storing Service Principal credentials in GitHub Secrets..."
-echo "$SERVICE_PRINCIPAL_JSON" > creds.json
-# Here, you need to manually add this to your GitHub Secrets or automate it if you have GitHub CLI configured.
-# Example command to add secret using GitHub CLI (uncomment if needed):
-# gh secret set AZURE_CREDENTIALS < creds.json
+# Output the Service Principal credentials for manual addition to GitHub Secrets
+echo "Service Principal credentials (add these to GitHub Secrets as AZURE_CREDENTIALS):"
+echo "$SERVICE_PRINCIPAL_JSON"
 
 # Create Bicep directory if it doesn't exist
 BICEP_DIR="./bicep"
@@ -155,7 +152,9 @@ echo "GitHub Actions workflow for GitOps has been created at .github/workflows/g
 
 # Add and commit changes
 git add .
-git commit -m "GitOps"
-git push
+git commit -m "Setup GitOps configuration with Bicep files"
 
-echo "Setup complete. Please push your changes to the repository."
+# Push changes to GitHub (ensure no sensitive files are pushed)
+git push origin main
+
+echo "Setup complete. Please add the Service Principal credentials to GitHub Secrets as AZURE_CREDENTIALS."
