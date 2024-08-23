@@ -119,8 +119,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
       
-      - name: Set up Azure CLI
-        uses: azure/setup-cli@v1
+      - name: Install Azure CLI
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
       - name: Login to Azure
         run: az login --service-principal -u $AZURE_SERVICE_PRINCIPAL_NAME -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant $AZURE_TENANT_ID
