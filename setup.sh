@@ -8,18 +8,6 @@ if [ -z "$GITHUB_PAT" ]; then
   exit 1
 fi
 
-# Set Variables
-GITHUB_USERNAME="flavioaiello"
-REPO_NAME="playground"
-AZURE_SUBSCRIPTION_ID=$(az account show --query id --output tsv)
-AZURE_TENANT_ID=$(az account show --query tenantId --output tsv)
-AZURE_SERVICE_PRINCIPAL_NAME="my-github-actions-sp"
-RESOURCE_GROUP_NAME="myResourceGroup" # Specify your desired resource group name
-LOCATION="eastus" # Specify your desired Azure region
-VNET_NAME="myVNet" # Specify your desired VNet name
-SUBNET_NAME="mySubnet" # Specify your desired subnet name
-SUBNET_PREFIX="10.0.0.0/24" # Specify your desired subnet CIDR
-
 # Create Service Principal
 # echo "Creating Azure Service Principal..."
 # SERVICE_PRINCIPAL_JSON=$(az ad sp create-for-rbac --name "$AZURE_SERVICE_PRINCIPAL_NAME" --role Contributor --scopes "/subscriptions/$AZURE_SUBSCRIPTION_ID" --sdk-auth)
@@ -32,6 +20,18 @@ fi
 # Output the Service Principal credentials for manual addition to GitHub Secrets
 # echo "Service Principal credentials (add these to GitHub Secrets as AZURE_CREDENTIALS):"
 # echo "$SERVICE_PRINCIPAL_JSON"
+
+# Set Variables
+GITHUB_USERNAME="flavioaiello"
+REPO_NAME="playground"
+AZURE_SUBSCRIPTION_ID=$(az account show --query id --output tsv)
+AZURE_TENANT_ID=$(az account show --query tenantId --output tsv)
+AZURE_SERVICE_PRINCIPAL_NAME="my-github-actions-sp"
+RESOURCE_GROUP_NAME="myResourceGroup" # Specify your desired resource group name
+LOCATION="eastus" # Specify your desired Azure region
+VNET_NAME="myVNet" # Specify your desired VNet name
+SUBNET_NAME="mySubnet" # Specify your desired subnet name
+SUBNET_PREFIX="10.0.0.0/24" # Specify your desired subnet CIDR
 
 # Create Bicep directory if it doesn't exist
 BICEP_DIR="./bicep"
@@ -48,7 +48,7 @@ read -p "Enter the admin username: " ADMIN_USERNAME
 read -s -p "Enter the admin password: " ADMIN_PASSWORD
 echo # Move to a new line after password input
 
-# Create Bicep file for VM deployment
+# Create Bicep file for VM and network resources deployment
 BICEP_FILE="$BICEP_DIR/vm-deployment.bicep"
 if [ ! -f "$BICEP_FILE" ]; then
   echo "Creating Bicep file for VM and network resources deployment at $BICEP_FILE"
@@ -60,7 +60,7 @@ param subnetPrefix string = '$SUBNET_PREFIX'
 param vmName string = '$VM_NAME'
 param adminUsername string = '$ADMIN_USERNAME'
 @secure()
-param adminPassword string = '$ADMIN_PASSWORD'
+param adminPassword string // Removed default value
 
 resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
   name: vnetName
@@ -82,12 +82,8 @@ resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
   }
 }
 
-resource subnet 'Microsoft.Network/virtualNetworks/subnets@2021-05-01' = {
-  name: '\${vnet.name}/\${subnetName}'
-  properties: {}
-  dependsOn: [
-    vnet
-  ]
+resource subnet 'Microsoft.Network/virtualNetworks/subnets@2021-05-01' = parent: vnet {
+  name: subnetName
 }
 
 resource nic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
@@ -113,7 +109,7 @@ resource vm 'Microsoft.Compute/virtualMachines@2021-07-01' = {
   location: location
   properties: {
     hardwareProfile: {
-      vmSize: 'Standard_DS1_v2'
+      vmSize: 'Standard_DS2_v3' // Adjusted VM size to available SKU
     }
     storageProfile: {
       imageReference: {
