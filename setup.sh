@@ -119,23 +119,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
       
-      - name: Set up Azure CLI
-        run: |
-          echo "Installing Azure CLI..."
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-
-      - name: Login to Azure
-        uses: azure/login@v1
+      - name: Azure Login
+        uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Deploy all Bicep files
-        run: |
-          for bicepFile in ./bicep/*.bicep; do
-            echo "Deploying $bicepFile"
-            az deployment group create --resource-group <your-resource-group> --template-file "$bicepFile"
-          done
-
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            for bicepFile in ./bicep/*.bicep; do
+              echo "Deploying $bicepFile"
+              az deployment group create --resource-group <your-resource-group> --template-file "$bicepFile"
+            done
 EOL
 
 echo "GitHub Actions workflow for GitOps has been created at .github/workflows/gitops.yml"
