@@ -16,7 +16,7 @@ AZURE_TENANT_ID=$(az account show --query tenantId --output tsv)
 AZURE_SERVICE_PRINCIPAL_NAME="github-actions-sp"
 
 # Check if required tools are installed
-for tool in az jq git curl openssl base64; do
+for tool in az jq git curl openssl; do
   if ! command -v $tool &> /dev/null; then
     echo "$tool could not be found, please install it before running the script."
     exit 1
@@ -36,32 +36,23 @@ RESOURCE_GROUPS=$(az resource list --query "[].resourceGroup" -o tsv | sort -u)
 for RESOURCE_GROUP in $RESOURCE_GROUPS; do
   echo "Processing resource group: $RESOURCE_GROUP"
 
-  BICEP_DIR="infra/$RESOURCE_GROUP"
-  mkdir -p $BICEP_DIR
+  ARM_DIR="infra/$RESOURCE_GROUP"
+  mkdir -p $ARM_DIR
 
   # Export the entire resource group as an ARM template
   echo "Exporting ARM template for resource group: $RESOURCE_GROUP"
-  az group export --name $RESOURCE_GROUP --output json > $BICEP_DIR/exported-template.json
+  az group export --name $RESOURCE_GROUP --output json > $ARM_DIR/arm-template.json
 
-  if [[ $? -ne 0 || ! -s $BICEP_DIR/exported-template.json ]]; then
+  if [[ $? -ne 0 || ! -s $ARM_DIR/arm-template.json ]]; then
     echo "Failed to export ARM template or file is empty for resource group $RESOURCE_GROUP. Skipping..."
-    continue
-  fi
-
-  # Convert ARM template to Bicep
-  echo "Converting ARM template to Bicep for resource group $RESOURCE_GROUP..."
-  az bicep decompile --file $BICEP_DIR/exported-template.json --force > $BICEP_DIR/main.bicep
-
-  if [[ $? -ne 0 || ! -s $BICEP_DIR/main.bicep ]]; then
-    echo "Failed to convert ARM template to Bicep or file is empty for resource group $RESOURCE_GROUP. Skipping..."
     continue
   fi
 done
 
 # Initialize Git repository and push to GitHub
-echo "Committing Bicep files..."
+echo "Committing ARM template files..."
 git add .
-git commit -m "Initial commit with Bicep files for all resource groups"
+git commit -m "Initial commit with ARM templates for all resource groups"
 git pull origin main --rebase
 git push origin main
 
@@ -81,7 +72,7 @@ fi
 
 # Encrypt the secret using the public key with pkeyutl
 echo -n "$AZURE_SP" | openssl pkeyutl -encrypt -pubin -inkey <(echo "$PUBLIC_KEY" | base64 -d) -out encrypted-value.bin
-ENCRYPTED_VALUE=$(base64 encrypted-value.bin)
+ENCRYPTED_VALUE=$(base64 < encrypted-value.bin)
 
 # Upload the secret to GitHub
 curl -u $GITHUB_USERNAME:$GITHUB_PAT -X PUT https://api.github.com/repos/$GITHUB_USERNAME/$REPO_NAME/actions/secrets/AZURE_CREDENTIALS \
@@ -114,19 +105,20 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Deploy Bicep file
+    - name: Deploy ARM template
       run: |
         for dir in infra/*; do
           az deployment group create \
             --resource-group $(basename $dir) \
-            --template-file $dir/main.bicep
+            --template-file $dir/arm-template.json
         done
 GITHUB_ACTIONS
 
 # Commit and push the GitHub Actions workflow
 echo "Committing GitHub Actions workflow..."
 git add .github/workflows/deploy.yml
-git commit -m "Add GitHub Actions workflow for Bicep deployment of all resource groups"
+git commit -m "Add GitHub Actions workflow for ARM template deployment of all resource groups"
 git push origin main
 
 echo "Setup complete. Your infrastructure will deploy automatically on pushes to the main branch."
+
