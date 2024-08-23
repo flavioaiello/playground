@@ -23,6 +23,8 @@ jobs:
 
     - name: Deploy Bicep file
       run: |
-        az deployment group create \
-          --resource-group $RESOURCE_GROUP \
-          --template-file ./infra/main.bicep
+        for dir in infra/*; do
+          az deployment group create \
+            --resource-group $(basename $dir) \
+            --template-file $dir/main.bicep
+        done
