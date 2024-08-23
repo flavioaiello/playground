@@ -50,7 +50,7 @@ for RESOURCE_GROUP in $RESOURCE_GROUPS; do
 
   # Convert ARM template to Bicep
   echo "Converting ARM template to Bicep for resource group $RESOURCE_GROUP..."
-  az bicep decompile --file $BICEP_DIR/exported-template.json > $BICEP_DIR/main.bicep
+  az bicep decompile --file $BICEP_DIR/exported-template.json --force > $BICEP_DIR/main.bicep
 
   if [[ $? -ne 0 || ! -s $BICEP_DIR/main.bicep ]]; then
     echo "Failed to convert ARM template to Bicep or file is empty for resource group $RESOURCE_GROUP. Skipping..."
@@ -80,8 +80,8 @@ if [[ -z "$PUBLIC_KEY" || -z "$KEY_ID" ]]; then
 fi
 
 # Encrypt the secret using the public key with pkeyutl
-echo -n $AZURE_SP | openssl pkeyutl -encrypt -pubin -inkey <(echo $PUBLIC_KEY | base64 -d) -out encrypted-value.bin
-ENCRYPTED_VALUE=$(base64 < encrypted-value.bin)
+echo -n "$AZURE_SP" | openssl pkeyutl -encrypt -pubin -inkey <(echo "$PUBLIC_KEY" | base64 -d) -out encrypted-value.bin
+ENCRYPTED_VALUE=$(base64 encrypted-value.bin)
 
 # Upload the secret to GitHub
 curl -u $GITHUB_USERNAME:$GITHUB_PAT -X PUT https://api.github.com/repos/$GITHUB_USERNAME/$REPO_NAME/actions/secrets/AZURE_CREDENTIALS \
