@@ -37,7 +37,7 @@ echo "Exporting ARM template for existing resources in the resource group..."
 az group export --name $RESOURCE_GROUP --resource-group $RESOURCE_GROUP --query properties.template > exported-template.json
 
 echo "Converting ARM template to Bicep..."
-az bicep decompile --file exported-template.json --out-file $BICEP_DIR/main.bicep
+az bicep decompile --file exported-template.json > $BICEP_DIR/main.bicep
 
 # Initialize Git repository and push to GitHub
 echo "Committing Bicep files..."
