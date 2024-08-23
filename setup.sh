@@ -40,8 +40,8 @@ for RESOURCE_GROUP in $(az group list --query "[].name" -o tsv); do
   echo "Exporting ARM template for $RESOURCE_GROUP..."
   az group export --name $RESOURCE_GROUP --query properties.template > $BICEP_DIR/exported-template.json
   
-  if [[ $? -ne 0 ]]; then
-    echo "Failed to export ARM template for $RESOURCE_GROUP. Skipping..."
+  if [[ $? -ne 0 || ! -s $BICEP_DIR/exported-template.json ]]; then
+    echo "Failed to export ARM template or file is empty for $RESOURCE_GROUP. Skipping..."
     continue
   fi
 
@@ -49,8 +49,8 @@ for RESOURCE_GROUP in $(az group list --query "[].name" -o tsv); do
   echo "Converting ARM template to Bicep for $RESOURCE_GROUP..."
   az bicep decompile --file $BICEP_DIR/exported-template.json > $BICEP_DIR/main.bicep
 
-  if [[ $? -ne 0 ]]; then
-    echo "Failed to convert ARM template to Bicep for $RESOURCE_GROUP. Skipping..."
+  if [[ $? -ne 0 || ! -s $BICEP_DIR/main.bicep ]]; then
+    echo "Failed to convert ARM template to Bicep or file is empty for $RESOURCE_GROUP. Skipping..."
     continue
   fi
 done
