@@ -123,10 +123,14 @@ jobs:
         uses: azure/setup-cli@v1
 
       - name: Login to Azure
-        run: az login --service-principal -u \$AZURE_SERVICE_PRINCIPAL_NAME -p \${{ secrets.AZURE_CLIENT_SECRET }} --tenant \$AZURE_TENANT_ID
+        run: az login --service-principal -u $AZURE_SERVICE_PRINCIPAL_NAME -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant $AZURE_TENANT_ID
 
-      - name: Deploy Bicep files
-        run: az deployment group create --resource-group <your-resource-group> --template-file ./$BICEP_DIR/vm-deployment.bicep --parameters vmName='<your-vm-name>' adminUsername='<your-admin-username>' adminPassword='<your-admin-password>'
+      - name: Deploy all Bicep files
+        run: |
+          for bicepFile in ./bicep/*.bicep; do
+            echo "Deploying $bicepFile"
+            az deployment group create --resource-group <your-resource-group> --template-file "$bicepFile"
+          done
 EOL
 
 echo "GitHub Actions workflow for GitOps has been created at .github/workflows/gitops.yml"
