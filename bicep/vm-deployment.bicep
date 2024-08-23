@@ -3,18 +3,16 @@ param vnetName string = 'myVNet'
 param subnetName string = 'mySubnet'
 param subnetPrefix string = '10.0.0.0/24'
 param vmName string = 'web'
-param adminUsername string = 'admin'
+param adminUsername string = 'web'
 @secure()
-param adminPassword string = 'M4$erat1Mc12'
+param adminPassword string
 
 resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
   name: vnetName
   location: location
   properties: {
     addressSpace: {
-      addressPrefixes: [
-        '10.0.0.0/16' // Adjust as needed
-      ]
+      addressPrefixes: ['10.0.0.0/16']
     }
     subnets: [
       {
@@ -27,12 +25,8 @@ resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
   }
 }
 
-resource subnet 'Microsoft.Network/virtualNetworks/subnets@2021-05-01' = {
-  name: '${vnet.name}/${subnetName}'
-  properties: {}
-  dependsOn: [
-    vnet
-  ]
+resource subnet 'Microsoft.Network/virtualNetworks/subnets@2021-05-01' = parent: vnet {
+  name: subnetName
 }
 
 resource nic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
@@ -58,7 +52,7 @@ resource vm 'Microsoft.Compute/virtualMachines@2021-07-01' = {
   location: location
   properties: {
     hardwareProfile: {
-      vmSize: 'Standard_DS1_v2'
+      vmSize: 'Standard_D2as_v4' // Adjusted VM size to available SKU
     }
     storageProfile: {
       imageReference: {
@@ -82,7 +76,7 @@ resource vm 'Microsoft.Compute/virtualMachines@2021-07-01' = {
     networkProfile: {
       networkInterfaces: [
         {
-          id: nic.id // Reference the NIC's ID
+          id: nic.id
         }
       ]
     }
