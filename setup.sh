@@ -14,10 +14,12 @@ REPO_NAME="playground"
 AZURE_SUBSCRIPTION_ID=$(az account show --query id --output tsv)
 AZURE_TENANT_ID=$(az account show --query tenantId --output tsv)
 AZURE_SERVICE_PRINCIPAL_NAME="my-github-actions-sp"
+RESOURCE_GROUP_NAME="myResourceGroup" # Specify your desired resource group name
+LOCATION="eastus" # Specify your desired Azure region
 
 # Create Service Principal
-echo "Creating Azure Service Principal..."
-SERVICE_PRINCIPAL_JSON=$(az ad sp create-for-rbac --name "$AZURE_SERVICE_PRINCIPAL_NAME" --role Contributor --scopes "/subscriptions/$AZURE_SUBSCRIPTION_ID" --sdk-auth)
+# echo "Creating Azure Service Principal..."
+# SERVICE_PRINCIPAL_JSON=$(az ad sp create-for-rbac --name "$AZURE_SERVICE_PRINCIPAL_NAME" --role Contributor --scopes "/subscriptions/$AZURE_SUBSCRIPTION_ID" --sdk-auth)
 
 if [ $? -ne 0 ]; then
   echo "Failed to create Service Principal."
@@ -25,8 +27,17 @@ if [ $? -ne 0 ]; then
 fi
 
 # Output the Service Principal credentials for manual addition to GitHub Secrets
-echo "Service Principal credentials (add these to GitHub Secrets as AZURE_CREDENTIALS):"
-echo "$SERVICE_PRINCIPAL_JSON"
+# echo "Service Principal credentials (add these to GitHub Secrets as AZURE_CREDENTIALS):"
+# echo "$SERVICE_PRINCIPAL_JSON"
+
+# Create the Resource Group if it doesn't exist
+echo "Checking if resource group '$RESOURCE_GROUP_NAME' exists..."
+if ! az group show --name "$RESOURCE_GROUP_NAME" > /dev/null 2>&1; then
+  echo "Resource group '$RESOURCE_GROUP_NAME' does not exist. Creating it now..."
+  az group create --name "$RESOURCE_GROUP_NAME" --location "$LOCATION"
+else
+  echo "Resource group '$RESOURCE_GROUP_NAME' already exists."
+fi
 
 # Create Bicep directory if it doesn't exist
 BICEP_DIR="./bicep"
@@ -144,7 +155,7 @@ jobs:
           inlineScript: |
             for bicepFile in ./bicep/*.bicep; do
               echo "Deploying \$bicepFile"
-              az deployment group create --resource-group <your-resource-group> --template-file "\$bicepFile"
+              az deployment group create --resource-group "$RESOURCE_GROUP_NAME" --template-file "\$bicepFile"
             done
 EOL
 

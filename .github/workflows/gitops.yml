@@ -24,5 +24,5 @@ jobs:
           inlineScript: |
             for bicepFile in ./bicep/*.bicep; do
               echo "Deploying $bicepFile"
-              az deployment group create --resource-group <your-resource-group> --template-file "$bicepFile"
+              az deployment group create --resource-group "myResourceGroup" --template-file "$bicepFile"
             done
