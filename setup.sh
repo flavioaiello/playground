@@ -24,6 +24,75 @@ else
   echo "Bicep directory already exists at $BICEP_DIR"
 fi
 
+# Create Bicep file for VM deployment
+BICEP_FILE="$BICEP_DIR/vm-deployment.bicep"
+if [ ! -f "$BICEP_FILE" ]; then
+  echo "Creating Bicep file for VM deployment at $BICEP_FILE"
+  cat <<EOL > "$BICEP_FILE"
+param vmName string
+param adminUsername string
+@secure()
+param adminPassword string
+param location string = resourceGroup().location
+
+resource vm 'Microsoft.Compute/virtualMachines@2021-07-01' = {
+  name: vmName
+  location: location
+  properties: {
+    hardwareProfile: {
+      vmSize: 'Standard_DS1_v2'
+    }
+    storageProfile: {
+      imageReference: {
+        publisher: 'MicrosoftWindowsServer'
+        offer: 'WindowsServer'
+        sku: '2019-Datacenter'
+        version: 'latest'
+      }
+      osDisk: {
+        createOption: 'FromImage'
+        managedDisk: {
+          storageAccountType: 'Standard_LRS'
+        }
+      }
+    }
+    osProfile: {
+      computerName: vmName
+      adminUsername: adminUsername
+      adminPassword: adminPassword
+    }
+    networkProfile: {
+      networkInterfaces: [
+        {
+          id: vmId
+        }
+      ]
+    }
+  }
+}
+
+resource nic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
+  name: '${vmName}-nic'
+  location: location
+  properties: {
+    ipConfigurations: [
+      {
+        name: '${vmName}-ipconfig'
+        properties: {
+          subnet: {
+            id: subnetId
+          }
+          privateIPAllocationMethod: 'Dynamic'
+        }
+      }
+    ]
+  }
+}
+EOL
+else
+  echo "Bicep file for VM deployment already exists at $BICEP_FILE"
+fi
+
 # Initialize Git repository if not already initialized
 if [ ! -d ".git" ]; then
   echo "Initializing a new Git repository."
@@ -57,13 +126,13 @@ jobs:
         run: az login --service-principal -u \$AZURE_SERVICE_PRINCIPAL_NAME -p \${{ secrets.AZURE_CLIENT_SECRET }} --tenant \$AZURE_TENANT_ID
 
       - name: Deploy Bicep files
-        run: az deployment group create --resource-group <your-resource-group> --template-file ./$BICEP_DIR/main.bicep --parameters @./$BICEP_DIR/parameters.json
+        run: az deployment group create --resource-group <your-resource-group> --template-file ./$BICEP_DIR/vm-deployment.bicep --parameters vmName='<your-vm-name>' adminUsername='<your-admin-username>' adminPassword='<your-admin-password>'
 EOL
 
 echo "GitHub Actions workflow for GitOps has been created at .github/workflows/gitops.yml"
 
 # Add and commit changes
 git add .
-git commit -m "Setup GitOps configuration with Bicep files"
+git commit -m "Setup GitOps configuration with Bicep files for VM deployment"
 
 echo "Setup complete. Please push your changes to the repository."
