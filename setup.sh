@@ -7,7 +7,6 @@ if [ -z "$GITHUB_PAT" ]; then
   echo "Example: export GITHUB_PAT='your-github-personal-access-token'"
   exit 1
 fi
-
 # Create Service Principal
 # echo "Creating Azure Service Principal..."
 # SERVICE_PRINCIPAL_JSON=$(az ad sp create-for-rbac --name "$AZURE_SERVICE_PRINCIPAL_NAME" --role Contributor --scopes "/subscriptions/$AZURE_SUBSCRIPTION_ID" --sdk-auth)
@@ -26,7 +25,6 @@ GITHUB_USERNAME="flavioaiello"
 REPO_NAME="playground"
 AZURE_SUBSCRIPTION_ID=$(az account show --query id --output tsv)
 AZURE_TENANT_ID=$(az account show --query tenantId --output tsv)
-AZURE_SERVICE_PRINCIPAL_NAME="my-github-actions-sp"
 RESOURCE_GROUP_NAME="myResourceGroup" # Specify your desired resource group name
 LOCATION="eastus" # Specify your desired Azure region
 VNET_NAME="myVNet" # Specify your desired VNet name
@@ -60,16 +58,14 @@ param subnetPrefix string = '$SUBNET_PREFIX'
 param vmName string = '$VM_NAME'
 param adminUsername string = '$ADMIN_USERNAME'
 @secure()
-param adminPassword string // Removed default value
+param adminPassword string
 
 resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
   name: vnetName
   location: location
   properties: {
     addressSpace: {
-      addressPrefixes: [
-        '10.0.0.0/16' // Adjust as needed
-      ]
+      addressPrefixes: ['10.0.0.0/16']
     }
     subnets: [
       {
@@ -133,7 +129,7 @@ resource vm 'Microsoft.Compute/virtualMachines@2021-07-01' = {
     networkProfile: {
       networkInterfaces: [
         {
-          id: nic.id // Reference the NIC's ID
+          id: nic.id
         }
       ]
     }
@@ -195,5 +191,4 @@ git commit -m "Setup GitOps configuration with Bicep files including network and
 # Push changes to GitHub (ensure no sensitive files are pushed)
 git push origin main
 
-echo "Setup complete."
-
+echo "Setup complete. Please add the Service Principal credentials to GitHub Secrets as AZURE_CREDENTIALS."
