@@ -139,7 +139,7 @@ echo "GitHub Actions workflow for GitOps has been created at .github/workflows/g
 
 # Add and commit changes
 git add .
-git commit -m "Setup GitOps configuration with Bicep files for VM deployment"
+git commit -m "GitOps commit"
 git push 
 
 echo "Setup complete. Please push your changes to the repository."
