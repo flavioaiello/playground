@@ -11,9 +11,6 @@ fi
 # Set Variables
 GITHUB_USERNAME="flavioaiello"
 REPO_NAME="playground"
-RESOURCE_GROUP="myResourceGroup"
-LOCATION="eastus"
-BICEP_DIR="infra"
 AZURE_SUBSCRIPTION_ID=$(az account show --query id --output tsv)
 AZURE_TENANT_ID=$(az account show --query tenantId --output tsv)
 AZURE_SERVICE_PRINCIPAL_NAME="github-actions-sp"
@@ -32,17 +29,36 @@ if ! az account show &> /dev/null; then
   exit 1
 fi
 
-# Export ARM template for existing resources and convert to Bicep
-echo "Exporting ARM template for existing resources in the resource group..."
-az group export --name $RESOURCE_GROUP --resource-group $RESOURCE_GROUP --query properties.template > exported-template.json
+# Loop through all resource groups
+for RESOURCE_GROUP in $(az group list --query "[].name" -o tsv); do
+  echo "Processing resource group: $RESOURCE_GROUP"
 
-echo "Converting ARM template to Bicep..."
-az bicep decompile --file exported-template.json > $BICEP_DIR/main.bicep
+  BICEP_DIR="infra/$RESOURCE_GROUP"
+  mkdir -p $BICEP_DIR
+
+  # Export ARM template for the resource group
+  echo "Exporting ARM template for $RESOURCE_GROUP..."
+  az group export --name $RESOURCE_GROUP --query properties.template > $BICEP_DIR/exported-template.json
+  
+  if [[ $? -ne 0 ]]; then
+    echo "Failed to export ARM template for $RESOURCE_GROUP. Skipping..."
+    continue
+  fi
+
+  # Convert ARM template to Bicep
+  echo "Converting ARM template to Bicep for $RESOURCE_GROUP..."
+  az bicep decompile --file $BICEP_DIR/exported-template.json > $BICEP_DIR/main.bicep
+
+  if [[ $? -ne 0 ]]; then
+    echo "Failed to convert ARM template to Bicep for $RESOURCE_GROUP. Skipping..."
+    continue
+  fi
+done
 
 # Initialize Git repository and push to GitHub
 echo "Committing Bicep files..."
 git add .
-git commit -m "Initial commit with Bicep files"
+git commit -m "Initial commit with Bicep files for all resource groups"
 git pull origin main --rebase
 git push origin main
 
@@ -96,15 +112,17 @@ jobs:
 
     - name: Deploy Bicep file
       run: |
-        az deployment group create \
-          --resource-group $RESOURCE_GROUP \
-          --template-file ./infra/main.bicep
+        for dir in infra/*; do
+          az deployment group create \
+            --resource-group $(basename $dir) \
+            --template-file $dir/main.bicep
+        done
 GITHUB_ACTIONS
 
 # Commit and push the GitHub Actions workflow
 echo "Committing GitHub Actions workflow..."
 git add .github/workflows/deploy.yml
-git commit -m "Add GitHub Actions workflow for Bicep deployment"
+git commit -m "Add GitHub Actions workflow for Bicep deployment of all resource groups"
 git push origin main
 
 echo "Setup complete. Your infrastructure will deploy automatically on pushes to the main branch."
