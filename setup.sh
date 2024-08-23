@@ -29,30 +29,34 @@ if ! az account show &> /dev/null; then
   exit 1
 fi
 
-# Loop through all resource groups
+# Iterate over all resource groups
 for RESOURCE_GROUP in $(az group list --query "[].name" -o tsv); do
-  echo "Processing resource group: $RESOURCE_GROUP"
+  echo "Processing resources in resource group: $RESOURCE_GROUP"
 
   BICEP_DIR="infra/$RESOURCE_GROUP"
   mkdir -p $BICEP_DIR
 
-  # Export ARM template for the resource group
-  echo "Exporting ARM template for $RESOURCE_GROUP..."
-  az group export --name $RESOURCE_GROUP --query properties.template > $BICEP_DIR/exported-template.json
-  
-  if [[ $? -ne 0 || ! -s $BICEP_DIR/exported-template.json ]]; then
-    echo "Failed to export ARM template or file is empty for $RESOURCE_GROUP. Skipping..."
-    continue
-  fi
+  # List all resources in the resource group and iterate over them
+  for RESOURCE_ID in $(az resource list --resource-group $RESOURCE_GROUP --query "[].id" -o tsv); do
+    echo "Exporting ARM template for resource: $RESOURCE_ID"
 
-  # Convert ARM template to Bicep
-  echo "Converting ARM template to Bicep for $RESOURCE_GROUP..."
-  az bicep decompile --file $BICEP_DIR/exported-template.json > $BICEP_DIR/main.bicep
+    # Export ARM template for each resource
+    az resource show --ids $RESOURCE_ID --query properties > $BICEP_DIR/exported-template.json
 
-  if [[ $? -ne 0 || ! -s $BICEP_DIR/main.bicep ]]; then
-    echo "Failed to convert ARM template to Bicep or file is empty for $RESOURCE_GROUP. Skipping..."
-    continue
-  fi
+    if [[ $? -ne 0 || ! -s $BICEP_DIR/exported-template.json ]]; then
+      echo "Failed to export ARM template or file is empty for resource $RESOURCE_ID. Skipping..."
+      continue
+    fi
+
+    # Convert ARM template to Bicep
+    echo "Converting ARM template to Bicep for resource $RESOURCE_ID..."
+    az bicep decompile --file $BICEP_DIR/exported-template.json > $BICEP_DIR/main.bicep
+
+    if [[ $? -ne 0 || ! -s $BICEP_DIR/main.bicep ]]; then
+      echo "Failed to convert ARM template to Bicep or file is empty for resource $RESOURCE_ID. Skipping..."
+      continue
+    fi
+  done
 done
 
 # Initialize Git repository and push to GitHub
