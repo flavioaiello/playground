@@ -13,7 +13,23 @@ GITHUB_USERNAME="flavioaiello"
 REPO_NAME="playground"
 AZURE_SUBSCRIPTION_ID=$(az account show --query id --output tsv)
 AZURE_TENANT_ID=$(az account show --query tenantId --output tsv)
-AZURE_SERVICE_PRINCIPAL_NAME="github-actions-sp"
+AZURE_SERVICE_PRINCIPAL_NAME="my-github-actions-sp"
+
+# Create Service Principal
+echo "Creating Azure Service Principal..."
+SERVICE_PRINCIPAL_JSON=$(az ad sp create-for-rbac --name "$AZURE_SERVICE_PRINCIPAL_NAME" --role Contributor --scopes "/subscriptions/$AZURE_SUBSCRIPTION_ID" --sdk-auth)
+
+if [ $? -ne 0 ]; then
+  echo "Failed to create Service Principal."
+  exit 1
+fi
+
+# Store the Service Principal credentials in GitHub Secrets
+echo "Storing Service Principal credentials in GitHub Secrets..."
+echo "$SERVICE_PRINCIPAL_JSON" > creds.json
+# Here, you need to manually add this to your GitHub Secrets or automate it if you have GitHub CLI configured.
+# Example command to add secret using GitHub CLI (uncomment if needed):
+# gh secret set AZURE_CREDENTIALS < creds.json
 
 # Create Bicep directory if it doesn't exist
 BICEP_DIR="./bicep"
@@ -64,7 +80,7 @@ resource vm 'Microsoft.Compute/virtualMachines@2021-07-01' = {
     networkProfile: {
       networkInterfaces: [
         {
-          id: vmId
+          id: nic.id
         }
       ]
     }
@@ -122,7 +138,7 @@ jobs:
       - name: Azure Login
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          creds: \${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Deploy all Bicep files
         uses: azure/cli@v2
@@ -130,8 +146,8 @@ jobs:
           azcliversion: latest
           inlineScript: |
             for bicepFile in ./bicep/*.bicep; do
-              echo "Deploying $bicepFile"
-              az deployment group create --resource-group <your-resource-group> --template-file "$bicepFile"
+              echo "Deploying \$bicepFile"
+              az deployment group create --resource-group <your-resource-group> --template-file "\$bicepFile"
             done
 EOL
 
@@ -139,7 +155,7 @@ echo "GitHub Actions workflow for GitOps has been created at .github/workflows/g
 
 # Add and commit changes
 git add .
-git commit -m "GitOps commit"
-git push 
+git commit -m "Setup GitOps configuration with Bicep files and Service Principal"
+git push
 
 echo "Setup complete. Please push your changes to the repository."
