@@ -29,8 +29,11 @@ if ! az account show &> /dev/null; then
   exit 1
 fi
 
-# Iterate over all resource groups and export them as ARM templates
-for RESOURCE_GROUP in $(az group list --query "[].name" -o tsv); do
+# Get the list of unique resource groups from all resources
+RESOURCE_GROUPS=$(az resource list --query "[].resourceGroup" -o tsv | sort -u)
+
+# Iterate over each resource group
+for RESOURCE_GROUP in $RESOURCE_GROUPS; do
   echo "Processing resource group: $RESOURCE_GROUP"
 
   BICEP_DIR="infra/$RESOURCE_GROUP"
@@ -38,7 +41,7 @@ for RESOURCE_GROUP in $(az group list --query "[].name" -o tsv); do
 
   # Export the entire resource group as an ARM template
   echo "Exporting ARM template for resource group: $RESOURCE_GROUP"
-  az group export --name $RESOURCE_GROUP --query properties.template > $BICEP_DIR/exported-template.json
+  az group export --name $RESOURCE_GROUP --output json > $BICEP_DIR/exported-template.json
 
   if [[ $? -ne 0 || ! -s $BICEP_DIR/exported-template.json ]]; then
     echo "Failed to export ARM template or file is empty for resource group $RESOURCE_GROUP. Skipping..."
