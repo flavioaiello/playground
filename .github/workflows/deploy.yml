@@ -21,10 +21,12 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Deploy ARM template
+    - name: Deploy Bicep file
       run: |
-        for dir in infra/*; do
+        for dir in bicep/*; do
           az deployment group create \
             --resource-group $(basename $dir) \
-            --template-file $dir/arm-template.json
+            --template-file $dir/main.bicep \
+            --parameters workspaceName='your-workspace-name'  # Specify the Log Analytics workspace name
+            --parameters sentinelWorkspaceName='your-sentinel-instance-name'  # Specify the Sentinel instance name
         done
