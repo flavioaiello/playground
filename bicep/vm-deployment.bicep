@@ -25,10 +25,6 @@ resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
   }
 }
 
-resource subnet 'Microsoft.Network/virtualNetworks/subnets@2021-05-01' = parent: vnet {
-  name: subnetName
-}
-
 resource nic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
   name: '${vmName}-nic'
   location: location
@@ -38,7 +34,7 @@ resource nic 'Microsoft.Network/networkInterfaces@2021-05-01' = {
         name: '${vmName}-ipconfig'
         properties: {
           subnet: {
-            id: subnet.id // Reference the subnet's ID dynamically
+            id: resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, subnetName)
           }
           privateIPAllocationMethod: 'Dynamic'
         }
@@ -52,7 +48,7 @@ resource vm 'Microsoft.Compute/virtualMachines@2021-07-01' = {
   location: location
   properties: {
     hardwareProfile: {
-      vmSize: 'Standard_D2as_v4' // Adjusted VM size to available SKU
+      vmSize: 'Standard_D2as_v4'
     }
     storageProfile: {
       imageReference: {
