@@ -6,8 +6,8 @@ param vmName string = 'web'
 param adminUsername string = 'web'
 
 var passwordLength = 16
-var generatedPassword = uniqueString(resourceGroup().id, vmName)
-var password = toLower(substring(generatedPassword, 0, passwordLength))
+var generatedPassword = uniqueString(resourceGroup().id, vmName, subscription().id)
+var password = take(generatedPassword, passwordLength)
 
 resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
   name: vnetName
@@ -80,5 +80,3 @@ resource vm 'Microsoft.Compute/virtualMachines@2021-07-01' = {
     }
   }
 }
-
-output generatedPassword string = password
