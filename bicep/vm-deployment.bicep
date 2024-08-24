@@ -4,8 +4,10 @@ param subnetName string = 'mySubnet'
 param subnetPrefix string = '10.0.0.0/24'
 param vmName string = 'web'
 param adminUsername string = 'web'
-@secure()
-param adminPassword string
+
+var passwordLength = 16
+var generatedPassword = uniqueString(resourceGroup().id, vmName)
+var password = toLower(substring(generatedPassword, 0, passwordLength))
 
 resource vnet 'Microsoft.Network/virtualNetworks@2021-05-01' = {
   name: vnetName
@@ -67,7 +69,7 @@ resource vm 'Microsoft.Compute/virtualMachines@2021-07-01' = {
     osProfile: {
       computerName: vmName
       adminUsername: adminUsername
-      adminPassword: adminPassword
+      adminPassword: password
     }
     networkProfile: {
       networkInterfaces: [
@@ -78,3 +80,5 @@ resource vm 'Microsoft.Compute/virtualMachines@2021-07-01' = {
     }
   }
 }
+
+output generatedPassword string = password
